@@ -1,0 +1,4 @@
+DECONVOLVER
+
+Graphical User Interface for analysis of DSC-MRI data using Bezier curve deconvolution.
+The program also includes SVD based analysis methods.
