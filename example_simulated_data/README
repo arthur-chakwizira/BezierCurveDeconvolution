@@ -1,1 +1,6 @@
 Some example simulated data in format *.nii
+
+There are 3 cases:
+1. Varying CBF, fixed CBV, no delay, no dispersion
+2. Fixed CBF, fixed CBV, varying delay, varying dispersion, exponential residue function
+3. As in 1 but varying residue function shape
