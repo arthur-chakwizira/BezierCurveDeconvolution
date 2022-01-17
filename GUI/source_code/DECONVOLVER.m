@@ -27,7 +27,7 @@ function varargout = DECONVOLVER(varargin)
 %      Medical Radiation Physics, Lund University, Sweden
 %
 %      Part of the code base is an extension of preliminary work by:
-%      Andr? Ahlgren
+%      André Ahlgren
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -395,7 +395,7 @@ switch handles.save_format
 end
 handles.file_filter = file_filter;
 %% SIMULATE DSC DATA
-%If user chooses to select data, notify that this functionality is not yet
+%If user chooses to simulate data, notify that this functionality is not yet
 %available
 if handles.simulate_data
     opts.Interpreter = 'tex'; opts.WindowStyle = 'non-modal';
