@@ -20,7 +20,7 @@ target_folder = config.target_folder;
 %OEFmax = integral(0, ?nfinity) h(tau)*Q(tau)dtau
 %where h(tau) is the distribution of transit tiems (h(t = )-dR/dt)
 
-k       = 1000;    	% [1/s] permeabiility of capilary wall to O2
+k       = 100;    	% [1/s] permeabiility of capilary wall to O2
 %tau is the capillary transit time
 
 % k       = 118;      % [1/s]
@@ -44,7 +44,7 @@ for i = 1:length(taus)
     [x,C] = ode45(odefun, x,c_0,options); %% solve equations
     %integrates the system of differential equations C' = f(C,x) from
     %tspan(0) to tspan(1), with initial conditions given by c_0
-    Q(i) = 1 - C(2)/C(1);
+    Q(i) = 1 - C(end)/C(1);
 end
 
 oef_BzD   = zeros(img_size(1:3)); %
