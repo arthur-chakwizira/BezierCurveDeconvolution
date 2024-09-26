@@ -154,7 +154,7 @@ end
 
 function prepare_concentration_data(hObject)
 handles = guidata(hObject);
-if ~isfield(handles, 'dsc_data_c')
+if 1%~isfield(handles, 'dsc_data_c') %always do this
     dsc_data_c = handles.dsc_data.*0;
     dsc_data = handles.dsc_data;
     img_size = handles.img_size;

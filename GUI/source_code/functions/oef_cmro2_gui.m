@@ -34,7 +34,7 @@ t = 0:tr:(img_size(4)-1)*tr;
 % load_oef_calib = 0;
 opts.Interpreter = 'tex';
 opts.Default = 'Load calibration';
-response = questdlg('\fontsize{10}OEF calculation requires calibration of the rate constant to give OEF = 30% in healthy white matter. Select action.', ...
+response = questdlg('\fontsize{10}OEF calculation requires calibration of the rate constant to give desired OEF in healthy white matter. Select action.', ...
     'OEF calibration','Load calibration', 'Perform new calibration', opts);
 switch response
     case 'Load calibration'
@@ -46,8 +46,8 @@ switch response
         blink_this(handles.edit7, 'b') %make the text blink
     otherwise
         report('Analysis terminated by user.', handles, 'r')
-         oef_BzD   = zeros(img_size(1:3));
-         cmro2_BzD   = zeros(img_size(1:3));
+        oef_BzD   = zeros(img_size(1:3));
+        cmro2_BzD   = zeros(img_size(1:3));
         oef_svd   = zeros(img_size(1:3));
         cmro2_svd   = zeros(img_size(1:3));
         return
@@ -61,18 +61,23 @@ if load_oef_calib
         load_oef_calib = false;
     else
         path_to_data = fullfile(path, file); %otherwise generate full file path
-        try load(path_to_data, "k"); catch; end
-        if ~exist('k', 'var')
-           report('Selected file does not contain k. New calibration required.', handles, 'r')
-           load_oef_calib = false;
-           k = NaN;
+        try load(path_to_data, "k", "Pt", "P50", "h", "OEF_WM"); catch; end %Pt and P50 are also saved to calibration file
+        if ~exist('k', 'var') || ~exist('Pt', 'var') || ~exist('P50', 'var') || ~exist('h', 'var')
+            report('Selected file is missing k or Pt or P50 or h. New calibration required.', handles, 'r')
+            load_oef_calib = false;
+            k = NaN;
+            Pt = NaN;
+            P50 = NaN;
+            h = NaN;
+        else
+            fileID = fopen(strcat(target_folder, '/OEF_calibration_log.txt'), 'w');
+            fprintf(fileID, "OEF calibration settings: OEF (healthy white matter) = " + num2str(OEF_WM) + " percent , Pt = " + num2str(Pt) +  " mmHg and P50 = " + num2str(P50) + " mmHg, h = " + num2str(h) + "\n");
+            fprintf(fileID, "The calibration above gave k = " + num2str(k) + " /s" + "\n");
+            fclose(fileID);
         end
-        fileID = fopen(strcat(target_folder, '/OEF_calibration_log.txt'), 'w');
-        fprintf(fileID, "OEF computed with k = " + num2str(k) + "\n");
-        fclose(fileID);
     end
     tmp = get(handles.edit14, 'String');
-    tmp{end+1} = '- - - - OEF calibration file - - - -'; 
+    tmp{end+1} = '- - - - OEF calibration file - - - -';
     if exist('path_to_data', 'var'); tmp{end+1} = path_to_data; end
     set(handles.edit14, 'String',tmp)
 end
@@ -84,6 +89,44 @@ if ~load_oef_calib
         set(handles.edit7, 'String', wrap_text, 'ForegroundColor', 'r') %inform user
         return
     end
+    
+    %ask user for Pt here (Pt is tissue oxygen tension in mmHg) and P50
+    %(P50 is oxygen pressure required for half saturation) and h (Hill coefficient)
+    wrap_text = 'Waiting for user input...';
+    set(handles.edit7, 'String', wrap_text, 'ForegroundColor', 'b')
+    opts.Interpreter = 'tex';
+    prompt = {'\color{blue} \fontsize{10} Desired OEF in healthy white matter [%] :', '\color{blue} \fontsize{10} Tissue oxygen tension, Pt [mmHg] :'...
+        , '\color{blue} \fontsize{10} Oxygen pressure required for half saturation, P50 [mmHg] :', '\color{blue} \fontsize{10} Hill coefficient, h :'};
+    dlgtitle = 'DECONVOLVER: OEF calibration settings';
+    dims = [1 90];
+    defaults = {'30', '25', '26', '2.8'};
+    response = inputdlg(prompt, dlgtitle, dims, defaults, opts);
+    if isempty(response) %if use clicks cancel, report and terminate
+        wrap_text = 'Target WM OEF, Pt, P50 and h not specified. Proceeding with default values...';
+        set(handles.edit7, 'String', wrap_text, 'ForegroundColor', 'b')
+        OEF_WM = 30; Pt = 25; P50 = 26; h = 2.8;
+    else
+        OEF_WM = str2double(response{1});
+        Pt = str2double(response{2});
+        P50 = str2double(response{3});
+        h = str2double(response{4});
+        if isfinite(OEF_WM)&&isfinite(Pt)&&isfinite(P50)&&isfinite(h)
+            wrap_text = 'User-supplied OEF calibration settings saved. Draw ROI in healthy WM to proceed';
+            set(handles.edit7, 'String', wrap_text, 'ForegroundColor', 'b')
+        else
+            wrap_text = 'Target WM OEF, Pt, P50 and h not specified.. Proceeding with default values...';
+            set(handles.edit7, 'String', wrap_text, 'ForegroundColor', 'b')
+            OEF_WM = 30; Pt = 25; P50 = 26; h = 2.8;
+        end
+    end
+    
+    fileID = fopen(strcat(target_folder, '/OEF_calibration_log.txt'), 'w');
+    fprintf(fileID, "OEF calibration settings: \n");
+    fprintf(fileID,  "OEF (healthy white matter) = " + num2str(OEF_WM) + " percent , Pt = " + num2str(Pt) +  " mmHg, P50 = " + num2str(P50) + " mmHg and h = " + num2str(h) +  "\n");
+    fclose(fileID);
+    
+    
+    figure(handles.figure1) %bring main window to top
     
     childlist = get(handles.figure1, 'Children');
     for c = 1:numel(childlist)
@@ -130,41 +173,54 @@ if ~load_oef_calib
     waitbar(6/7, handles.p_bar, 'Calibrating OEF calculation: user input accepted...')
     % set(handles.figure1, 'Pointer', 'watch')
     
-    %% calibrate k for OEF WM = 0.3
-    k_upper = 500;
-    k_lower = 1;
+    %% calibrate k for OEF WM = OEF_WM
+    k_upper = 10000000;
+    k_lower = 0;
     incomplete = true;
     %open log file
-    fileID = fopen(strcat(target_folder, '/OEF_calibration_log.txt'), 'w');
+    fileID = fopen(strcat(target_folder, '/OEF_calibration_log.txt'), 'a');
+    fprintf(fileID, "\n");
+    fprintf(fileID, "Begin logging OEF calibration: \n");
     
     fail_counter = 0;
-            do_BzD = handles.BzD;
-        do_SVD = handles.do_SVD;
-        
+    do_BzD = handles.BzD;
+    do_SVD = handles.do_SVD;
+    previous_tmp_k = -1;  
     while incomplete
         %tau is the capillary transit time
         
         % k       = 118;      % [1/s]
         
-        tmp_k = k_lower + round((k_upper-k_lower)/2);
+        tmp_k = k_lower + round((k_upper-k_lower)/2, 1);
+        
+        if tmp_k == previous_tmp_k
+            fprintf(fileID, "OEF Calibration failed. Required OEF can not be achieved with k in the range [0 1E7]" + "\n");
+            fprintf(fileID, "Proceeding with a default value of k = 50 /s" + "\n");
+            message = "OEF Calibration failed. Required OEF can not be achieved with k in the range [0 1E7]";
+            disp(message);
+            opts.Interpreter = 'tex'; opts.WindowStyle = 'modal';
+            uiwait(errordlg('\fontsize{10}OEF calibration failed. Required OEF can not be achieved with k in the range [0 1E7]', 'DECONVOLER: OEF calibration', opts));
+            tmp_k = 50;
+            break;
+        end
         
         B       = 0.1943;   % ml/ml
         c_a     = 0.95*B;   % ml/ml
         c_0     = c_a;
         
         xspan   = [0 1];
-        taus    = (0:0.01:100)';
+        taus    = (0:0.1:100)';
         dtau    = taus(2)-taus(1);
         
-        options = odeset('AbsTol',1e-9); %% set solver options
+        options = odeset('AbsTol',1e-9, 'RelTol', 1e-4); %% set solver options
         Q = zeros(length(taus),1);
         
         for i = 1:length(taus)
             
             tau = taus(i);
             
-            odefun = @(x, C)dc_dx(x,C, tau, tmp_k);
-            [~,C] = ode45(odefun, xspan,c_0,options); %% solve equations
+            odefun = @(x, C)dc_dx(x,C, tau, tmp_k, Pt, P50, h);
+            [~,C] = ode23tb(odefun, xspan,c_0,options); %% solve equations
             %@@@ integrates the system of differential equations C' = f(C,x) from
             %tspan(0) to tspan(1), with initial conditions given by c_0
             Q(i) = 1 - C(end)/C(1);
@@ -185,10 +241,10 @@ if ~load_oef_calib
                     if  oef_mask(x,y,z)
                         if do_BzD
                             r = bezier_residue_function(fitd_omega(x,y,z,:), taus);
-                            h = -diff(r)/dtau;
-                            h(end+1) = 0;
-%                             h = -customDiff(r)/dtau;
-                            tmp_oef_BzD(y,z) = 100*trapz(taus,h.*Q);
+                            H = -diff(r)/dtau;
+                            H(end+1) = 0;
+                            %                             h = -customDiff(r)/dtau;
+                            tmp_oef_BzD(y,z) = 100*trapz(taus,H.*Q);
                         end
                         if do_SVD
                             try
@@ -196,10 +252,10 @@ if ~load_oef_calib
                             catch
                                 r = zeros(size(taus));
                             end
-%                             h = -customDiff(r)/dtau;
-                            h = -diff(r)/dtau;
-                            h(end+1) = 0;
-                            tmp_oef_svd(y,z) = 100*trapz(taus,h.*Q);
+                            %                             h = -customDiff(r)/dtau;
+                            H = -diff(r)/dtau;
+                            H(end+1) = 0;
+                            tmp_oef_svd(y,z) = 100*trapz(taus,H.*Q);
                         end
                     end
                 end
@@ -213,12 +269,12 @@ if ~load_oef_calib
         if do_SVD; oef_svd(isnan(oef_svd)) = []; wm_oef = mean(oef_svd); end
         if do_BzD; oef_BzD(isnan(oef_BzD)) = []; wm_oef = mean(oef_BzD); end
         
-        if isfinite(wm_oef)&&(wm_oef>0)
-            if round(wm_oef) > 32 %tmp_k = tmp_k - dk;
+        if isfinite(wm_oef)&&(wm_oef>0)&&isreal(wm_oef)
+            if (wm_oef) > 1.05*OEF_WM
                 k_upper = tmp_k;
                 fprintf(fileID, "k = " + num2str(tmp_k) + " is too high. OEF WM = " + num2str(wm_oef) + "\n");
                 disp("k = " + num2str(tmp_k) + " is too high. OEF = " + num2str(wm_oef));
-            elseif round(wm_oef) < 30 % tmp_k = tmp_k + dk;
+            elseif (wm_oef) < OEF_WM
                 k_lower = tmp_k;
                 fprintf(fileID, "k = " + num2str(tmp_k) + " is too low. OEF WM = " + num2str(wm_oef) + "\n");
                 disp("k = " + num2str(tmp_k) + " is too low. OEF = " + num2str(wm_oef));
@@ -229,33 +285,77 @@ if ~load_oef_calib
             end
         else
             
-            fprintf("k = " + num2str(tmp_k) + " : OEF WM is not finite" + "\n");
+            fprintf(fileID, "k = " + num2str(tmp_k) + " : OEF WM is not finite" + "\n");
             k_upper = 0.5*k_upper;
             fail_counter = fail_counter+1;
             if fail_counter > 20
-                fprintf("OEF Calibration failed. Proceeding with default value of k = 50" + "\n");
+                fprintf(fileID, "OEF Calibration failed. Proceeding with default value of k = 50" + "\n");
+                 message = "OEF Calibration failed. Proceeding with default value of k = 50";
+                 disp(message);
+            opts.Interpreter = 'tex'; opts.WindowStyle = 'modal';
+            uiwait(errordlg('\fontsize{10}OEF calibration failed. Calibration settings gave undefined OEF.', 'DECONVOLER: OEF calibration', opts));
                 tmp_k = 50;
                 break
             end
             disp("k = " + num2str(tmp_k) + " : OEF not finite")
         end
         
-        
-        %     if round(wm_oef) == 30; incomplete = false; end
-        
+        previous_tmp_k = tmp_k; %use this to identify when required k is outside maximum range        
     end
     
+    fprintf(fileID, "End logging OEF calibration. \n");
     fclose(fileID);
     k = tmp_k;
     
     oef_rois = active_rois;
     oef_roi_slices = active_roi_slices;
-    save(fullfile(handles.target_folder, "OEF_calibration.mat"), "oef_rois", "oef_roi_slices", "k")
+    save(fullfile(handles.target_folder, "OEF_calibration.mat"), "oef_rois", "oef_roi_slices", "k", "Pt", "OEF_WM", "P50", "h")
     tmp = get(handles.edit14, 'String');
     tmp{end+1} = '- - - - OEF calibration file - - - -'; tmp{end+1} = fullfile(handles.target_folder, 'OEF_calibration.mat');
     set(handles.edit14, 'String',tmp)
     guidata(hObject, handles)
 end
+
+%% before computing OEF, ask user to verify or change k, Pt, P50 and h
+%ask user for Pt here again (Pt is tissue oxygen tension in mmHg),  P50
+%(P50 is oxygen pressure required for half saturation) and h (Hill coefficient) 
+wrap_text = 'Waiting for user input...';
+set(handles.edit7, 'String', wrap_text, 'ForegroundColor', 'b')
+opts.Interpreter = 'tex';
+prompt = {'\color{blue} \fontsize{10} Calibrated rate constant, k [s^{-1}] :', '\color{blue} \fontsize{10} Tissue oxygen tension, Pt [mmHg] :'...
+    , '\color{blue} \fontsize{10} Oxygen pressure required for half saturation, P50 [mmHg] :', '\color{blue} \fontsize{10} Hill coefficient, h :'};
+dlgtitle = 'DECONVOLVER: Confirm/edit OEF calculation settings';
+dims = [1 90];
+defaults = {num2str(k), num2str(Pt), num2str(P50), num2str(h)};
+response = inputdlg(prompt, dlgtitle, dims, defaults, opts);
+if isempty(response) %if use clicks cancel, do nothing
+    wrap_text = 'Proceeding with calibrated values...';
+    set(handles.edit7, 'String', wrap_text, 'ForegroundColor', 'b')
+else
+    tmp_k = str2double(response{1});
+    tmp_Pt = str2double(response{2});
+    tmp_P50 = str2double(response{3});
+    tmp_h = str2double(response{4});
+    if isfinite(tmp_k)&&isfinite(tmp_Pt)&&isfinite(tmp_P50)&&isfinite(tmp_h)
+        wrap_text = 'User-supplied OEF calculation settings saved.';
+        set(handles.edit7, 'String', wrap_text, 'ForegroundColor', 'b')
+        k = tmp_k;
+        Pt = tmp_Pt;
+        P50 = tmp_P50;
+        h = tmp_h;
+    else
+        wrap_text = 'Invalid input. Proceeding with calibrated values...';
+        set(handles.edit7, 'String', wrap_text, 'ForegroundColor', 'b')
+    end
+end
+
+
+%% write final values of k, Pt and P50 to file before continuing
+fileID = fopen(strcat(target_folder, '/OEF_calibration_log.txt'), 'a');
+fprintf(fileID, "\n");
+fprintf(fileID, "OEF calculation settings: \n");
+fprintf(fileID, "k = " + num2str(k) + "/s , Pt = " + num2str(Pt) +  " mmHg, P50 = " + num2str(P50) + " mmHg and h = " + num2str(h) + "\n");
+fclose(fileID);
 
 %% now compute actual OEF
 report('Computing OEF...', handles)
@@ -270,18 +370,18 @@ c_a     = 0.95*B;   % ml/ml
 c_0     = c_a;
 
 xspan   =  [0 1]; %normalised distance
-taus    = (0:0.01:100)';
+taus    = (0:0.1:100)';
 dtau    = taus(2)-taus(1);
 
-options = odeset('AbsTol',1e-9); %% set solver options
+options = odeset('AbsTol',1e-9, 'RelTol', 1e-4); %% set solver options
 Q = zeros(length(taus),1);
 
 for i = 1:length(taus)
     
     tau = taus(i);
     
-    odefun = @(x, C)dc_dx(x,C, tau, k);
-    [~,C] = ode45(odefun, xspan,c_0,options); %% solve equations
+    odefun = @(x, C)dc_dx(x,C, tau, k, Pt, P50, h);
+    [~,C] = ode23tb(odefun, xspan,c_0,options); %% solve equations
     %@@@ integrates the system of differential equations C' = f(C,x) from
     %tspan(0) to tspan(1), with initial conditions given by c_0
     Q(i) = 1 - C(end)/C(1);
@@ -309,9 +409,9 @@ for x = xrange
             if mask(x,y,z)
                 if do_BzD
                     r = bezier_residue_function(fitd_omega(x,y,z,:), taus);
-                    h = -diff(r)/dtau;
-                    h(end+1) = 0;
-                    tmp_oef_BzD(y,z) = 100*trapz(taus,h.*Q);
+                    H = -diff(r)/dtau;
+                    H(end+1) = 0;
+                    tmp_oef_BzD(y,z) = 100*trapz(taus,H.*Q);
                     tmp_cmro2_BzD(y,z) = c_a * tmp_oef_BzD(y,z) * fitd_cbf(x,y,z);
                 end
                 if do_SVD
@@ -320,10 +420,10 @@ for x = xrange
                     catch
                         r = zeros(size(taus));
                     end
-%                     h = -customDiff(r)/dtau;
-                    h = -diff(r)/dtau;
-                    h(end+1) = 0;
-                    tmp_oef_svd(y,z) = 100*trapz(taus(1:numel(h)),h.*Q);
+                    %                     h = -customDiff(r)/dtau;
+                    H = -diff(r)/dtau;
+                    H(end+1) = 0;
+                    tmp_oef_svd(y,z) = 100*trapz(taus(1:numel(H)),H.*Q);
                     tmp_cmro2_svd(y,z) = c_a * tmp_oef_svd(y,z) * fitd_cbf_svd(x,y,z);
                 end
             end
@@ -478,7 +578,3 @@ guidata(hObject, handles)
 initialise_roi_placement(hObject)
 end
 
-function dy = customDiff(y)
-    dy = diff(y);
-    dy(end+1) = 0;
-end

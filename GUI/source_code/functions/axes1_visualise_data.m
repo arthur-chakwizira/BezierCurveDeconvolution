@@ -542,6 +542,7 @@ handles = guidata(hObject);
 %seek y axis limits
 reset_axes2(hObject);
 hold(handles.axes2, 'on')
+% [tb,btns] = axtoolbar(handles.axes2, {'zoomin','zoomout','restoreview'});
 if handles.use_dsc_data_for_roi
     axes1_data = handles.axes1_data_2;
 else
