@@ -66,13 +66,13 @@ if fileID ~= -1; fclose(fileID); diary(log_fn); end
 
 
 % DECONVOLVER needs the functions in folder named 'functions' to run
-% path_to_functions = fullfile(pwd, 'functions');
-% if ~isfolder(path_to_functions) %if functions folder is non-existent
-%     opts.Interpreter = 'tex'; opts.WindowStyle = 'modal'; %raise an error and terminate execution
-%     errordlg('\fontsize{10} \color{red}All functions needed for DECONVOLVER to run are missing! DECONVOLVER can not run.', 'Fatal error', opts);
-%     error('FATAL ERROR! Functions needed for DECONVOLVER to run are missing!');
-% end
-% addpath(path_to_functions) %add path to functions
+path_to_functions = fullfile(pwd, 'functions');
+if ~isfolder(path_to_functions) %if functions folder is non-existent
+    opts.Interpreter = 'tex'; opts.WindowStyle = 'modal'; %raise an error and terminate execution
+    errordlg('\fontsize{10} \color{red}All functions needed for DECONVOLVER to run are missing! DECONVOLVER can not run.', 'Fatal error', opts);
+    error('FATAL ERROR! Functions needed for DECONVOLVER to run are missing!');
+end
+addpath(path_to_functions) %add path to functions
 
 
 %Setting default values for the program.
@@ -932,7 +932,8 @@ if file == 0 %if user cancels file selection dialog
     set(handles.edit7, 'String', wrap_text, 'ForegroundColor', 'r')
     return %terminate execution
 end
-reset_axes(handles)
+% reset_axes(handles) %this is now being done by the function below
+terminate_all_aif_or_vof_selection(hObject)
 path_to_data = fullfile(path, file); %otherwise generate full file path
 [file_folder, file_name, file_ext] = fileparts(path_to_data); %extract folder name, file name and file extension
 %TODO
@@ -985,6 +986,9 @@ function pushbutton20_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 %% GET AIF
+% if isfield(handles, 'dsc_data_c')
+%    handles = rmfield(handles,'dsc_data_c'); %this is important to make sure that AIF selection is performed on current dataset not some old dsc_data_c
+% end
     if ~handles.dsc_data_loaded
         wrap_text = 'AIF selection requires DSC data. Load data to proceed.'; %check that data exists
         set(handles.edit7, 'String', wrap_text, 'ForegroundColor', 'r') %inform user
@@ -1077,7 +1081,7 @@ else %user instead wants to load an existing AIF from file
     end
     path_to_aif = fullfile(path, file); %otherwise generate full path to AIF file
     mean_aif_c = read_this_file(path_to_aif, 1); %call the function that reads files; output must be 1-dimensional; function raises error otherwise
-    if true; t = 0:handles.tr:(handles.img_size(4)-1)*handles.tr; %if you must display aif, generate time-vector
+    if true; t = 0:handles.tr:(numel(mean_aif_c)-1)*handles.tr; %if you must display aif, generate time-vector
         plot(t, mean_aif_c, 'k-', 'Parent', handles.axes2); %plot
         xlabel( handles.axes2,'t [s]'); ylabel( handles.axes2, '{C_a}(t)'); title( handles.axes2, 'AIF')
     end
@@ -1110,6 +1114,7 @@ function pushbutton21_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 %% GET VOF
+handles = guidata(hObject); %start with updated version of handles
     if ~handles.dsc_data_loaded
         wrap_text = 'VOF selection requires DSC data. Load data to proceed.'; %check that data exists
         set(handles.edit7, 'String', wrap_text, 'ForegroundColor', 'r') %inform user
@@ -1201,7 +1206,7 @@ else %user instead wants to load an existing VOF from file
     end
     path_to_vof = fullfile(path, file); %otherwise generate full path to VOF file
     mean_vof_c = read_this_file(path_to_vof, 1); %call the function that reads files; output must be 1-dimensional; function raises error otherwise
-    if true; t = 0:handles.tr:(handles.img_size(4)-1)*handles.tr; %if you must display aif, generate time-vector
+    if true; t = 0:handles.tr:(numel(mean_vof_c)-1)*handles.tr; %if you must display aif, generate time-vector
         plot(t, mean_vof_c, 'k-', 'Parent', handles.axes2); %plot
         xlabel( handles.axes2,'t [s]'); ylabel( handles.axes2, '{C_a}(t)'); title( handles.axes2, 'VOF')
     end
